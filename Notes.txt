@@ -15,3 +15,5 @@ Notes:
   
 - I also added the ability to sort access logs by ID, user type, retrieval date, 
   scan direction, and active/inactive status.
+
+- Opening the project directly from the index.html will cause a CORS error
