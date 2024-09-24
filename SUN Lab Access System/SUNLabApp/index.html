@@ -156,237 +156,246 @@
         </div>
     </div>
     <script type="module">
-        showLoading()
-
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
         import { getFirestore, collection, getDocs, updateDoc, doc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
-        // Your Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCYtvLE1UCHRe0JSFXgyJkWs88qyjkL9NA",
-            authDomain: "sunlabaccesssystem.firebaseapp.com",
-            projectId: "sunlabaccesssystem",
-            storageBucket: "sunlabaccesssystem.appspot.com",
-            messagingSenderId: "526162844212",
-            appId: "1:526162844212:web:5488bb6c385c7377674861"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app); // Initialize Firestore
-        const auth = getAuth(app);    // Initialize Authentication
-
-        async function signInAdmin(email, password) {
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                console.error('Sign-in error:', error);
-
-                hideLoading();
-
-                document.getElementById('loginError').innerText = "Invalid login credentials. Please try again.";
-                document.getElementById('email').value = '';
-                document.getElementById('password').value = '';
-            }
-        }
-
-        setPersistence(auth, browserSessionPersistence)
-            .then(() => {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        showLoading()
-                        await fetchAccessLogs();
-                        hideLoading();
-
-                        document.getElementById('loginSection').style.display = 'none';
-                        document.getElementById('loginHeader').style.display = 'none';
-                        document.getElementById('accessLogsSection').style.display = 'block';
-                        document.getElementById('dbHeader').style.display = 'block';
-                    } else {
-                        hideLoading();
-
-                        document.getElementById('loginSection').style.display = 'block';
-                        document.getElementById('loginHeader').style.display = 'block';
-                        document.getElementById('accessLogsSection').style.display = 'none';
-                        document.getElementById('dbHeader').style.display = 'none';
-                    }
-                });
+        fetch('./config.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
             })
-            .catch((error) => {
-                console.error("Error setting persistence:", error);
-            });
+            .then(config => {
+                const firebaseConfig = {
+                    apiKey: config.apiKey,
+                    authDomain: config.authDomain,
+                    projectId: config.projectId,
+                    storageBucket: config.storageBucket,
+                    messagingSenderId: config.messagingSenderId,
+                    appId: config.appId
+                };
 
-        function showLoading() {
-            document.getElementById('loading').style.display = 'flex';
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('loginHeader').style.display = 'none';
-            document.getElementById('accessLogsSection').style.display = 'none';
-            document.getElementById('dbHeader').style.display = 'none';
-        }
+                showLoading()
 
-        function hideLoading() {
-            document.getElementById('loading').style.display = 'none';
-        }
+                // Initialize Firebase
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app); // Initialize Firestore
+                const auth = getAuth(app);    // Initialize Authentication
 
-        document.getElementById('loginButton').addEventListener('click', async () => {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            await signInAdmin(email, password);
-        });
+                async function signInAdmin(email, password) {
+                    try {
+                        await signInWithEmailAndPassword(auth, email, password);
+                    } catch (error) {
+                        console.error('Sign-in error:', error);
 
-        async function fetchAccessLogs(filters = {}) {
-            try {
-                const querySnapshot = await getDocs(collection(db, 'AccessLogs'));
-                const logsDiv = document.getElementById('logs');
-                logsDiv.innerHTML = '';
-                const fiveYearsAgo = new Date();
-                fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+                        hideLoading();
 
-                for (const doc of querySnapshot.docs) {
-                    const logData = doc.data();
-                    const logTimestamp = logData.retrievedAt.toDate();
-
-                    if (logTimestamp < fiveYearsAgo) {
-                        await deleteDoc(doc.ref);
-                        continue;
-                    }
-
-                    function isWithinTimeRange(logTimestamp, startTime, endTime) {
-                        const logTime = logTimestamp.getHours() * 60 + logTimestamp.getMinutes();
-
-                        const [startHours, startMinutes] = startTime.split(':').map(Number);
-                        const [endHours, endMinutes] = endTime.split(':').map(Number);
-
-                        const startTotalMinutes = startHours * 60 + startMinutes;
-                        const endTotalMinutes = endHours * 60 + endMinutes;
-
-                        return logTime >= startTotalMinutes && logTime <= endTotalMinutes;
-                    }
-
-                    const dateFilter = filters.startDate && filters.endDate
-                        ? logTimestamp >= new Date(`${filters.startDate}T00:00:00`) && logTimestamp <= new Date(`${filters.endDate}T23:59:59`)
-                        : true;
-                    const idFilter = filters.studentID ? logData.userID.includes(filters.studentID) : true;
-                    const timeFilter = filters.startTime && filters.endTime
-                        ? isWithinTimeRange(logTimestamp, filters.startTime, filters.endTime)
-                        : true;
-
-                    if (dateFilter && idFilter && timeFilter) {
-                        const accessDirection = logData.direction === "IN"
-                            ? `<i class="material-icons" style="vertical-align: middle;">arrow_forward</i> <span style="font-weight: bold; color: green;">IN</span>`
-                            : `<i class="material-icons" style="vertical-align: middle;">arrow_back</i> <span style="font-weight: bold; color: red;">OUT</span>`;
-
-                        const actionButton = logData.isActive
-                            ? `<button class="btn red lighten-1 suspend-btn" data-id="${doc.id}">Suspend</button>`
-                            : `<button class="btn green lighten-1 activate-btn" data-id="${doc.id}">Activate</button>`;
-
-                        const logEntry = `
-                            <tr>
-                                <td style="text-align: center;">${accessDirection}</td>
-                                <td>${logData.userType}</td>
-                                <td>${logData.userID}</td>
-                                <td>${logData.isActive ? "Active" : "Inactive"}</td>
-                                <td>${logData.retrievedAt.toDate().toLocaleString()}</td>
-                                <td>${actionButton}</td>
-                            </tr>
-                        `;
-                        logsDiv.innerHTML += logEntry;
+                        document.getElementById('loginError').innerText = "Invalid login credentials. Please try again.";
+                        document.getElementById('email').value = '';
+                        document.getElementById('password').value = '';
                     }
                 }
 
-                $('.suspend-btn').click(async function() {
-                    await toggleUserActiveState($(this).data('id'), false, filters);
-                });
+                setPersistence(auth, browserSessionPersistence)
+                    .then(() => {
+                        onAuthStateChanged(auth, async (user) => {
+                            if (user) {
+                                showLoading()
+                                await fetchAccessLogs();
+                                hideLoading();
 
-                $('.activate-btn').click(async function() {
-                    await toggleUserActiveState($(this).data('id'), true, filters);
-                });
+                                document.getElementById('loginSection').style.display = 'none';
+                                document.getElementById('loginHeader').style.display = 'none';
+                                document.getElementById('accessLogsSection').style.display = 'block';
+                                document.getElementById('dbHeader').style.display = 'block';
+                            } else {
+                                hideLoading();
 
-            } catch (error) {
-                console.error("Error fetching access logs: ", error);
-            } finally {
-                hideLoading();
+                                document.getElementById('loginSection').style.display = 'block';
+                                document.getElementById('loginHeader').style.display = 'block';
+                                document.getElementById('accessLogsSection').style.display = 'none';
+                                document.getElementById('dbHeader').style.display = 'none';
+                            }
+                        });
+                    })
+                    .catch((error) => {
+                        console.error("Error setting persistence:", error);
+                    });
 
-                sortLogs();
-            }
-        }
-
-        async function toggleUserActiveState(docId, isActive, filters) {
-            const docRef = doc(db, 'AccessLogs', docId);
-            await updateDoc(docRef, { isActive: isActive });
-            await fetchAccessLogs(filters);
-        }
-
-        document.getElementById('filterButton').addEventListener('click', () => {
-            const filters = {
-                startDate: document.getElementById('filterStartDate').value,
-                endDate: document.getElementById('filterEndDate').value,
-                studentID: document.getElementById('filterStudentID').value,
-                startTime: document.getElementById('filterStartTime').value,
-                endTime: document.getElementById('filterEndTime').value,
-            };
-            fetchAccessLogs(filters);
-        });
-
-        document.getElementById('clearFilterButton').addEventListener('click', () => {
-            document.getElementById('filterStartDate').value = '';
-            document.getElementById('filterEndDate').value = '';
-            document.getElementById('filterStudentID').value = '';
-            document.getElementById('filterStartTime').value = '';
-            document.getElementById('filterEndTime').value = '';
-            fetchAccessLogs();
-        });
-
-        let ascending = true
-
-        document.getElementById('sortBy').addEventListener('change', sortLogs);
-        document.getElementById('sortOrderToggle').addEventListener('click', toggleSortOrder);
-
-        function toggleSortOrder() {
-            ascending = !ascending;
-            document.getElementById('sortOrderToggle').textContent = ascending ? 'arrow_downward' : 'arrow_upward';
-            sortLogs();
-        }
-
-        function sortLogs() {
-            const sortBy = document.getElementById('sortBy').value;
-            const logsDiv = document.getElementById('logs');
-            const rows = Array.from(logsDiv.getElementsByTagName('tr'));
-
-            const sortedRows = rows.sort((a, b) => {
-                let aValue, bValue;
-
-                switch (sortBy) {
-                    case 'id':
-                        aValue = a.querySelector('td:nth-child(3)').innerText;
-                        bValue = b.querySelector('td:nth-child(3)').innerText;
-                        break;
-                    case 'date':
-                        aValue = new Date(a.querySelector('td:nth-child(5)').innerText).getTime();
-                        bValue = new Date(b.querySelector('td:nth-child(5)').innerText).getTime();
-                        break;
-                    case 'usertype':
-                        aValue = a.querySelector('td:nth-child(2)').innerText;
-                        bValue = b.querySelector('td:nth-child(2)').innerText;
-                        break;
-                    case 'status':
-                        aValue = a.querySelector('td:nth-child(4)').innerText === 'Active' ? 1 : 0;
-                        bValue = b.querySelector('td:nth-child(4)').innerText === 'Active' ? 1 : 0;
-                        break;
-                    case 'direction':
-                        aValue = a.querySelector('td:nth-child(1)').innerText.includes('IN') ? 1 : 0;
-                        bValue = b.querySelector('td:nth-child(1)').innerText.includes('IN') ? 1 : 0;
-                        break;
+                function showLoading() {
+                    document.getElementById('loading').style.display = 'flex';
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('loginHeader').style.display = 'none';
+                    document.getElementById('accessLogsSection').style.display = 'none';
+                    document.getElementById('dbHeader').style.display = 'none';
                 }
 
-                return ascending ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1);
-            });
+                function hideLoading() {
+                    document.getElementById('loading').style.display = 'none';
+                }
 
-            logsDiv.innerHTML = '';
-            sortedRows.forEach(row => logsDiv.appendChild(row));
-        }
+                document.getElementById('loginButton').addEventListener('click', async () => {
+                    const email = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+                    await signInAdmin(email, password);
+                });
+
+                async function fetchAccessLogs(filters = {}) {
+                    try {
+                        const querySnapshot = await getDocs(collection(db, 'AccessLogs'));
+                        const logsDiv = document.getElementById('logs');
+                        logsDiv.innerHTML = '';
+                        const fiveYearsAgo = new Date();
+                        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+
+                        for (const doc of querySnapshot.docs) {
+                            const logData = doc.data();
+                            const logTimestamp = logData.retrievedAt.toDate();
+
+                            if (logTimestamp < fiveYearsAgo) {
+                                await deleteDoc(doc.ref);
+                                continue;
+                            }
+
+                            function isWithinTimeRange(logTimestamp, startTime, endTime) {
+                                const logTime = logTimestamp.getHours() * 60 + logTimestamp.getMinutes();
+
+                                const [startHours, startMinutes] = startTime.split(':').map(Number);
+                                const [endHours, endMinutes] = endTime.split(':').map(Number);
+
+                                const startTotalMinutes = startHours * 60 + startMinutes;
+                                const endTotalMinutes = endHours * 60 + endMinutes;
+
+                                return logTime >= startTotalMinutes && logTime <= endTotalMinutes;
+                            }
+
+                            const dateFilter = filters.startDate && filters.endDate
+                                ? logTimestamp >= new Date(`${filters.startDate}T00:00:00`) && logTimestamp <= new Date(`${filters.endDate}T23:59:59`)
+                                : true;
+                            const idFilter = filters.studentID ? logData.userID.includes(filters.studentID) : true;
+                            const timeFilter = filters.startTime && filters.endTime
+                                ? isWithinTimeRange(logTimestamp, filters.startTime, filters.endTime)
+                                : true;
+
+                            if (dateFilter && idFilter && timeFilter) {
+                                const accessDirection = logData.direction === "IN"
+                                    ? `<i class="material-icons" style="vertical-align: middle;">arrow_forward</i> <span style="font-weight: bold; color: green;">IN</span>`
+                                    : `<i class="material-icons" style="vertical-align: middle;">arrow_back</i> <span style="font-weight: bold; color: red;">OUT</span>`;
+
+                                const actionButton = logData.isActive
+                                    ? `<button class="btn red lighten-1 suspend-btn" data-id="${doc.id}">Suspend</button>`
+                                    : `<button class="btn green lighten-1 activate-btn" data-id="${doc.id}">Activate</button>`;
+
+                                const logEntry = `
+                                    <tr>
+                                        <td style="text-align: center;">${accessDirection}</td>
+                                        <td>${logData.userType}</td>
+                                        <td>${logData.userID}</td>
+                                        <td>${logData.isActive ? "Active" : "Inactive"}</td>
+                                        <td>${logData.retrievedAt.toDate().toLocaleString()}</td>
+                                        <td>${actionButton}</td>
+                                    </tr>
+                                `;
+                                logsDiv.innerHTML += logEntry;
+                            }
+                        }
+
+                        $('.suspend-btn').click(async function() {
+                            await toggleUserActiveState($(this).data('id'), false, filters);
+                        });
+
+                        $('.activate-btn').click(async function() {
+                            await toggleUserActiveState($(this).data('id'), true, filters);
+                        });
+
+                    } catch (error) {
+                        console.error("Error fetching access logs: ", error);
+                    } finally {
+                        hideLoading();
+
+                        sortLogs();
+                    }
+                }
+
+                async function toggleUserActiveState(docId, isActive, filters) {
+                    const docRef = doc(db, 'AccessLogs', docId);
+                    await updateDoc(docRef, { isActive: isActive });
+                    await fetchAccessLogs(filters);
+                }
+
+                document.getElementById('filterButton').addEventListener('click', () => {
+                    const filters = {
+                        startDate: document.getElementById('filterStartDate').value,
+                        endDate: document.getElementById('filterEndDate').value,
+                        studentID: document.getElementById('filterStudentID').value,
+                        startTime: document.getElementById('filterStartTime').value,
+                        endTime: document.getElementById('filterEndTime').value,
+                    };
+                    fetchAccessLogs(filters);
+                });
+
+                document.getElementById('clearFilterButton').addEventListener('click', () => {
+                    document.getElementById('filterStartDate').value = '';
+                    document.getElementById('filterEndDate').value = '';
+                    document.getElementById('filterStudentID').value = '';
+                    document.getElementById('filterStartTime').value = '';
+                    document.getElementById('filterEndTime').value = '';
+                    fetchAccessLogs();
+                });
+
+                let ascending = true
+
+                document.getElementById('sortBy').addEventListener('change', sortLogs);
+                document.getElementById('sortOrderToggle').addEventListener('click', toggleSortOrder);
+
+                function toggleSortOrder() {
+                    ascending = !ascending;
+                    document.getElementById('sortOrderToggle').textContent = ascending ? 'arrow_downward' : 'arrow_upward';
+                    sortLogs();
+                }
+
+                function sortLogs() {
+                    const sortBy = document.getElementById('sortBy').value;
+                    const logsDiv = document.getElementById('logs');
+                    const rows = Array.from(logsDiv.getElementsByTagName('tr'));
+
+                    const sortedRows = rows.sort((a, b) => {
+                        let aValue, bValue;
+
+                        switch (sortBy) {
+                            case 'id':
+                                aValue = a.querySelector('td:nth-child(3)').innerText;
+                                bValue = b.querySelector('td:nth-child(3)').innerText;
+                                break;
+                            case 'date':
+                                aValue = new Date(a.querySelector('td:nth-child(5)').innerText).getTime();
+                                bValue = new Date(b.querySelector('td:nth-child(5)').innerText).getTime();
+                                break;
+                            case 'usertype':
+                                aValue = a.querySelector('td:nth-child(2)').innerText;
+                                bValue = b.querySelector('td:nth-child(2)').innerText;
+                                break;
+                            case 'status':
+                                aValue = a.querySelector('td:nth-child(4)').innerText === 'Active' ? 1 : 0;
+                                bValue = b.querySelector('td:nth-child(4)').innerText === 'Active' ? 1 : 0;
+                                break;
+                            case 'direction':
+                                aValue = a.querySelector('td:nth-child(1)').innerText.includes('IN') ? 1 : 0;
+                                bValue = b.querySelector('td:nth-child(1)').innerText.includes('IN') ? 1 : 0;
+                                break;
+                        }
+
+                        return ascending ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1);
+                    });
+
+                    logsDiv.innerHTML = '';
+                    sortedRows.forEach(row => logsDiv.appendChild(row));
+                }
+            })
+            .catch(error => console.error('Error loading config:', error));
     </script>
 </body>
 </html>
