@@ -1,0 +1,17 @@
+Project 1 - SUN Lab Access System
+
+Name: Essam Benamar  
+Email: evb5593@psu.edu  
+Course: CMPSC 487W  
+
+Notes:
+- From my understanding, deleting database entries directly through Firebase 
+  would cost money. To address this, I implemented a workaround: entries older than 5 years are 
+  automatically deleted upon webpage load. If this system was theoretically used somewhat 
+  frequently, this would function the same as deleting them through Firebase.
+  
+- I was uncertain about whether activating and suspending an ID was optional, so I 
+  implemented it regardless.
+  
+- I also added the ability to sort access logs by ID, user type, retrieval date, 
+  scan direction, and active/inactive status.

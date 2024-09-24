@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUN Lab Access</title>
+
+    <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.0.3-alpha/dist/css/materialize.min.css">
+
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.0.3-alpha/dist/js/materialize.min.js"></script>
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <!-- Material Symbols - Outlined Set -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <!-- Material Symbols - Rounded Set -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
+    <!-- Material Symbols - Sharp Set -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp" rel="stylesheet" />
+
+    <style>
+        i.material-icons:hover {
+            cursor: pointer;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            margin-bottom: 50px;
+            color: #333;
+        }
+
+        #loginError {
+            color: red;
+            margin-top: 20px;
+        }
+
+        .card {
+            margin: 0 auto 50px;
+            width: 70%;
+        }
+
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+    </style>
+
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+</head>
+
+<body>
+    <div id="loading" style="display: none;" class="center-align">
+        <div class="preloader-wrapper active">
+            <div class="spinner-layer spinner-blue">
+                <div class="circle-clipper left">
+                    <div class="circle"></div>
+                </div>
+                <div class="circle-clipper right">
+                    <div class="circle"></div>
+                </div>
+            </div>
+        </div>
+        <p>Loading, please wait...</p>
+    </div>
+
+    <div id="loginHeader" style="display: none; font-family: 'Candara',serif;">
+        <h1>Welcome to the SUN Lab Access System</h1>
+    </div>
+
+    <div id="dbHeader" style="display: none; font-family: 'Candara',serif;">
+        <h1>SUN Lab Access System Database</h1>
+    </div>
+
+    <div class="container">
+        <div id="loginSection" class="card" style="display: none;">
+            <div class="card-content">
+                <span class="card-title">Admin Login</span>
+                <div class="input-field">
+                    <input type="email" id="email" required />
+                    <label for="email">Email</label>
+                </div>
+                <div class="input-field">
+                    <input type="password" id="password" required />
+                    <label for="password">Password</label>
+                </div>
+                <button id="loginButton" style="margin-top: 20px;">Login</button>
+                <p id="loginError" class="red-text"></p>
+            </div>
+        </div>
+
+        <div id="accessLogsSection" class="card" style="display: none;">
+            <div class="card-content">
+                <div>
+                    <label for="filterStartDate">Filter by Start Date:</label>
+                    <input type="date" id="filterStartDate" />
+
+                    <label for="filterEndDate">Filter by End Date:</label>
+                    <input type="date" id="filterEndDate" />
+
+                    <label for="filterStudentID">Filter by Student ID:</label>
+                    <input type="text" id="filterStudentID" placeholder="Student ID" />
+
+                    <label for="filterStartTime">Filter by Time Range:</label>
+                    <input type="time" id="filterStartTime" />
+                    <input type="time" id="filterEndTime" />
+
+                    <button id="filterButton" style="margin-top: 20px; margin-bottom: 30px;">Filter</button>
+                    <button id="clearFilterButton" style="margin-top: -10px; margin-left: 10px;">Clear Filters</button>
+                </div>
+                <div>
+                    <label for="sortBy">Sort By:</label>
+                    <div style="display: flex; align-items: center;">
+                        <select id="sortBy" class="browser-default" style="margin-right: 10px;">
+                            <option value="id">ID</option>
+                            <option value="date">Date</option>
+                            <option value="usertype">User Type</option>
+                            <option value="status">Active/Inactive</option>
+                            <option value="direction">IN/OUT</option>
+                        </select>
+                        <i class="material-icons" id="sortOrderToggle" style="vertical-align: middle; cursor: pointer; user-select: none;">arrow_downward</i>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Access Direction</th>
+                        <th>User Type</th>
+                        <th>User ID</th>
+                        <th>Status</th>
+                        <th>Retrieved At</th>
+                        <th>Action</th>
+                    </tr>
+                    </thead>
+                    <tbody id="logs">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+        showLoading()
+
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getFirestore, collection, getDocs, updateDoc, doc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCYtvLE1UCHRe0JSFXgyJkWs88qyjkL9NA",
+            authDomain: "sunlabaccesssystem.firebaseapp.com",
+            projectId: "sunlabaccesssystem",
+            storageBucket: "sunlabaccesssystem.appspot.com",
+            messagingSenderId: "526162844212",
+            appId: "1:526162844212:web:5488bb6c385c7377674861"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app); // Initialize Firestore
+        const auth = getAuth(app);    // Initialize Authentication
+
+        async function signInAdmin(email, password) {
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                console.error('Sign-in error:', error);
+
+                hideLoading();
+
+                document.getElementById('loginError').innerText = "Invalid login credentials. Please try again.";
+                document.getElementById('email').value = '';
+                document.getElementById('password').value = '';
+            }
+        }
+
+        setPersistence(auth, browserSessionPersistence)
+            .then(() => {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        showLoading()
+                        await fetchAccessLogs();
+                        hideLoading();
+
+                        document.getElementById('loginSection').style.display = 'none';
+                        document.getElementById('loginHeader').style.display = 'none';
+                        document.getElementById('accessLogsSection').style.display = 'block';
+                        document.getElementById('dbHeader').style.display = 'block';
+                    } else {
+                        hideLoading();
+
+                        document.getElementById('loginSection').style.display = 'block';
+                        document.getElementById('loginHeader').style.display = 'block';
+                        document.getElementById('accessLogsSection').style.display = 'none';
+                        document.getElementById('dbHeader').style.display = 'none';
+                    }
+                });
+            })
+            .catch((error) => {
+                console.error("Error setting persistence:", error);
+            });
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('loginHeader').style.display = 'none';
+            document.getElementById('accessLogsSection').style.display = 'none';
+            document.getElementById('dbHeader').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        document.getElementById('loginButton').addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            await signInAdmin(email, password);
+        });
+
+        async function fetchAccessLogs(filters = {}) {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'AccessLogs'));
+                const logsDiv = document.getElementById('logs');
+                logsDiv.innerHTML = '';
+                const fiveYearsAgo = new Date();
+                fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+
+                for (const doc of querySnapshot.docs) {
+                    const logData = doc.data();
+                    const logTimestamp = logData.retrievedAt.toDate();
+
+                    if (logTimestamp < fiveYearsAgo) {
+                        await deleteDoc(doc.ref);
+                        continue;
+                    }
+
+                    function isWithinTimeRange(logTimestamp, startTime, endTime) {
+                        const logTime = logTimestamp.getHours() * 60 + logTimestamp.getMinutes();
+
+                        const [startHours, startMinutes] = startTime.split(':').map(Number);
+                        const [endHours, endMinutes] = endTime.split(':').map(Number);
+
+                        const startTotalMinutes = startHours * 60 + startMinutes;
+                        const endTotalMinutes = endHours * 60 + endMinutes;
+
+                        return logTime >= startTotalMinutes && logTime <= endTotalMinutes;
+                    }
+
+                    const dateFilter = filters.startDate && filters.endDate
+                        ? logTimestamp >= new Date(`${filters.startDate}T00:00:00`) && logTimestamp <= new Date(`${filters.endDate}T23:59:59`)
+                        : true;
+                    const idFilter = filters.studentID ? logData.userID.includes(filters.studentID) : true;
+                    const timeFilter = filters.startTime && filters.endTime
+                        ? isWithinTimeRange(logTimestamp, filters.startTime, filters.endTime)
+                        : true;
+
+                    if (dateFilter && idFilter && timeFilter) {
+                        const accessDirection = logData.direction === "IN"
+                            ? `<i class="material-icons" style="vertical-align: middle;">arrow_forward</i> <span style="font-weight: bold; color: green;">IN</span>`
+                            : `<i class="material-icons" style="vertical-align: middle;">arrow_back</i> <span style="font-weight: bold; color: red;">OUT</span>`;
+
+                        const actionButton = logData.isActive
+                            ? `<button class="btn red lighten-1 suspend-btn" data-id="${doc.id}">Suspend</button>`
+                            : `<button class="btn green lighten-1 activate-btn" data-id="${doc.id}">Activate</button>`;
+
+                        const logEntry = `
+                            <tr>
+                                <td style="text-align: center;">${accessDirection}</td>
+                                <td>${logData.userType}</td>
+                                <td>${logData.userID}</td>
+                                <td>${logData.isActive ? "Active" : "Inactive"}</td>
+                                <td>${logData.retrievedAt.toDate().toLocaleString()}</td>
+                                <td>${actionButton}</td>
+                            </tr>
+                        `;
+                        logsDiv.innerHTML += logEntry;
+                    }
+                }
+
+                $('.suspend-btn').click(async function() {
+                    await toggleUserActiveState($(this).data('id'), false, filters);
+                });
+
+                $('.activate-btn').click(async function() {
+                    await toggleUserActiveState($(this).data('id'), true, filters);
+                });
+
+            } catch (error) {
+                console.error("Error fetching access logs: ", error);
+            } finally {
+                hideLoading();
+
+                sortLogs();
+            }
+        }
+
+        async function toggleUserActiveState(docId, isActive, filters) {
+            const docRef = doc(db, 'AccessLogs', docId);
+            await updateDoc(docRef, { isActive: isActive });
+            await fetchAccessLogs(filters);
+        }
+
+        document.getElementById('filterButton').addEventListener('click', () => {
+            const filters = {
+                startDate: document.getElementById('filterStartDate').value,
+                endDate: document.getElementById('filterEndDate').value,
+                studentID: document.getElementById('filterStudentID').value,
+                startTime: document.getElementById('filterStartTime').value,
+                endTime: document.getElementById('filterEndTime').value,
+            };
+            fetchAccessLogs(filters);
+        });
+
+        document.getElementById('clearFilterButton').addEventListener('click', () => {
+            document.getElementById('filterStartDate').value = '';
+            document.getElementById('filterEndDate').value = '';
+            document.getElementById('filterStudentID').value = '';
+            document.getElementById('filterStartTime').value = '';
+            document.getElementById('filterEndTime').value = '';
+            fetchAccessLogs();
+        });
+
+        let ascending = true
+
+        document.getElementById('sortBy').addEventListener('change', sortLogs);
+        document.getElementById('sortOrderToggle').addEventListener('click', toggleSortOrder);
+
+        function toggleSortOrder() {
+            ascending = !ascending;
+            document.getElementById('sortOrderToggle').textContent = ascending ? 'arrow_downward' : 'arrow_upward';
+            sortLogs();
+        }
+
+        function sortLogs() {
+            const sortBy = document.getElementById('sortBy').value;
+            const logsDiv = document.getElementById('logs');
+            const rows = Array.from(logsDiv.getElementsByTagName('tr'));
+
+            const sortedRows = rows.sort((a, b) => {
+                let aValue, bValue;
+
+                switch (sortBy) {
+                    case 'id':
+                        aValue = a.querySelector('td:nth-child(3)').innerText;
+                        bValue = b.querySelector('td:nth-child(3)').innerText;
+                        break;
+                    case 'date':
+                        aValue = new Date(a.querySelector('td:nth-child(5)').innerText).getTime();
+                        bValue = new Date(b.querySelector('td:nth-child(5)').innerText).getTime();
+                        break;
+                    case 'usertype':
+                        aValue = a.querySelector('td:nth-child(2)').innerText;
+                        bValue = b.querySelector('td:nth-child(2)').innerText;
+                        break;
+                    case 'status':
+                        aValue = a.querySelector('td:nth-child(4)').innerText === 'Active' ? 1 : 0;
+                        bValue = b.querySelector('td:nth-child(4)').innerText === 'Active' ? 1 : 0;
+                        break;
+                    case 'direction':
+                        aValue = a.querySelector('td:nth-child(1)').innerText.includes('IN') ? 1 : 0;
+                        bValue = b.querySelector('td:nth-child(1)').innerText.includes('IN') ? 1 : 0;
+                        break;
+                }
+
+                return ascending ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1);
+            });
+
+            logsDiv.innerHTML = '';
+            sortedRows.forEach(row => logsDiv.appendChild(row));
+        }
+    </script>
+</body>
+</html>

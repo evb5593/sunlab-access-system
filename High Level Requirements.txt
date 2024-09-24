@@ -1,0 +1,21 @@
+Database Requirements
+
+1. A database must be implemented to store access logs securely.
+2. The database should be relational.
+3. The database shall retain records for five years.
+
+User Authentication
+
+4. User authentication must ensure that only authorized personnel can access and manage the database.
+5. An admin shall be able to log into the system using valid credentials.
+
+Access Logging
+
+6. The system shall log each SUN Lab access attempt, recording the user ID, access direction, and timestamp of the event.
+7. The system must be structured to support the future addition of multiple user types.
+
+User Interface Requirements
+
+8. A graphical user interface must be provided for the admin to view access logs.
+9. The GUI shall allow the admin to filter access logs by date, user ID, and time range.
+10. The system must be structued to support functionality to activate, suspend, and reactivate user IDs through the interface.

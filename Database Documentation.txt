@@ -1,0 +1,23 @@
+Database Documentation for the SUN Lab Access System
+
+Database Type: Firebase Firestore
+
+Collection: AccessLogs
+- This collection stores all access logs for the SUN Lab.
+
+- Document Structure:
+    - userType: String - The type of user accessing the lab (e.g., "student", "faculty", "staff", "janitor").
+    - userID: String - The user's Penn State ID (e.g., "abc1234").
+    - direction: String - Access direction, either "IN" or "OUT".
+    - isActive: Boolean - Status of the user ID (active: true, inactive: false).
+    - retrievedAt: Timestamp - Timestamp of when the access occurred.
+
+Authentication:
+- Authentication is done through Firebase Authentication with one user.
+
+- Current admin user credentials:
+    - Email: admin@testPSU.edu
+    - Password: testpass123
+
+Database Notes:
+- All access logs are stored for a duration of 5 years.
